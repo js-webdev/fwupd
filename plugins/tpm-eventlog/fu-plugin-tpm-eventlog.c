@@ -15,6 +15,7 @@
 struct FuPluginData {
 	GPtrArray		*pcr0s;
 	gboolean		 secure_boot_problem;
+	gboolean		 reconstructed;
 };
 
 void
@@ -112,6 +113,7 @@ fu_plugin_device_registered (FuPlugin *plugin, FuDevice *device)
 		for (guint j = 0; j < data->pcr0s->len; j++) {
 			const gchar *checksum_tmp = g_ptr_array_index (data->pcr0s, j);
 			if (g_strcmp0 (checksum, checksum_tmp) == 0) {
+				data->reconstructed = TRUE;
 				g_debug ("TPM reconstructed event log matched PCR0 reading");
 				return;
 			}
@@ -122,4 +124,21 @@ fu_plugin_device_registered (FuPlugin *plugin, FuDevice *device)
 	fu_device_set_update_message (device,
 				     "TPM PCR0 differs from reconstruction, "
 				     "please see https://github.com/fwupd/fwupd/wiki/TPM-PCR0-differs-from-reconstruction");
+}
+
+gboolean
+fu_plugin_add_hsi_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
+{
+	FuPluginData *data = fu_plugin_get_data (plugin);
+	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("org.trustedcomputinggroup.TpmEventLog");
+	fwupd_hsi_attr_set_number (attr, 2);
+	fwupd_hsi_attr_set_name (attr, "TPM Reconstruction");
+	if (data->reconstructed) {
+		fwupd_hsi_attr_set_summary (attr, "TPM event log matched PCR0 reading");
+		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+	} else {
+		fwupd_hsi_attr_set_summary (attr, "TPM event log did not match PCR0 reading");
+	}
+	g_ptr_array_add (attrs, attr);
+	return TRUE;
 }

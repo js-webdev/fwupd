@@ -2364,6 +2364,27 @@ fu_util_modify_config (FuUtilPrivate *priv, gchar **values, GError **error)
 	return TRUE;
 }
 
+static gboolean
+fu_util_get_hsi (FuUtilPrivate *priv, gchar **values, GError **error)
+{
+	g_autoptr(GPtrArray) attrs = NULL;
+	attrs = fwupd_client_get_host_security_attrs (priv->client,
+						      priv->cancellable,
+						      error);
+	if (attrs == NULL)
+		return FALSE;
+	for (guint i = 0; i < attrs->len; i++) {
+		FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
+		g_autofree gchar *str = fwupd_hsi_attr_to_string (attr);
+		g_print ("%s\n", str);
+	}
+
+	/* TRANSLATORS: this is a string like 'HSI2-U' */
+	g_print ("%s %s\n", _("Calculated Host Security ID:"),
+		 fwupd_client_get_host_security_id (priv->client));
+	return TRUE;
+}
+
 static void
 fu_util_ignore_cb (const gchar *log_domain, GLogLevelFlags log_level,
 		   const gchar *message, gpointer user_data)
@@ -2678,7 +2699,12 @@ main (int argc, char *argv[])
 		     /* TRANSLATORS: command description */
 		     _("Reinstall current firmware on the device."),
 		     fu_util_reinstall);
-
+	fu_util_cmd_array_add (cmd_array,
+		     "get-hsi",
+		     NULL,
+		     /* TRANSLATORS: command description */
+		     _("Gets the host security attributes."),
+		     fu_util_get_hsi);
 
 	/* do stuff on ctrl+c */
 	priv->cancellable = g_cancellable_new ();

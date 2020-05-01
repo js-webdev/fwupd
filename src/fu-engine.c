@@ -99,6 +99,8 @@ struct _FuEngine
 	gchar			*host_machine_id;
 	JcatContext		*jcat_context;
 	gboolean		 loaded;
+	gchar			*host_security_id;
+	gboolean		 host_security_id_valid;
 };
 
 enum {
@@ -133,6 +135,7 @@ fu_engine_emit_changed (FuEngine *self)
 static void
 fu_engine_emit_device_changed (FuEngine *self, FuDevice *device)
 {
+	self->host_security_id_valid = FALSE;
 	g_signal_emit (self, signals[SIGNAL_DEVICE_CHANGED], 0, device);
 }
 
@@ -5017,6 +5020,188 @@ fu_engine_get_host_machine_id (FuEngine *self)
 	return self->host_machine_id;
 }
 
+static void
+fu_engine_add_hsi_attrs_tainted (FuEngine *self, GPtrArray *attrs)
+{
+	FwupdHsiAttr *attr;
+
+	/* everything is fine */
+	if (!self->tainted)
+		return;
+
+	/* add runtime attribute */
+	attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.PluginsTainted");
+	fwupd_hsi_attr_set_name (attr, "fwupd daemon");
+	fwupd_hsi_attr_set_summary (attr, "The daemon has been tainted by a non-upstream plugin");
+	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_ISSUE);
+	g_ptr_array_add (attrs, attr);
+}
+
+static void
+fu_engine_add_hsi_attrs_supported (FuEngine *self, GPtrArray *attrs)
+{
+	FwupdHsiAttr *attr;
+	FwupdRelease *rel_newest = NULL;
+	guint64 now = (guint64) g_get_real_time () / G_USEC_PER_SEC;
+	g_autoptr(FuDevice) device = NULL;
+	g_autoptr(GPtrArray) releases = NULL;
+	g_autoptr(GError) error_local = NULL;
+
+	/* find out if there is firmware less than 6 months old */
+	device = fu_device_list_get_by_guid (self->device_list,
+					     /* main-system-firmware */
+					     "230c8b18-8d9b-53ec-838b-6cfc0383493a",
+					     &error_local);
+	if (device == NULL) {
+		g_debug ("no device for main-system-firmware: %s",
+			 error_local->message);
+		return;
+	}
+	releases = fu_engine_get_releases_for_device (self, device, &error_local);
+	if (releases == NULL) {
+		g_debug ("no releases for main-system-firmware: %s",
+			 error_local->message);
+		return;
+	}
+
+	/* check the age */
+	for (guint i = 0; i < releases->len; i++) {
+		FwupdRelease *rel_tmp = g_ptr_array_index (releases, i);
+		if (rel_newest == NULL ||
+		    fwupd_release_get_created (rel_tmp) > fwupd_release_get_created (rel_newest))
+			rel_newest = rel_tmp;
+	}
+	if (now - fwupd_release_get_created (rel_newest) > 60 * 60 * 24 * 30 * 12) {
+		g_debug ("newest release is %" G_GUINT64_FORMAT " months old",
+			 (now - fwupd_release_get_created (rel_newest)) / (60 * 60 * 24 * 30));
+		return;
+	}
+
+	/* add runtime attribute */
+	attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.Updates");
+	fwupd_hsi_attr_set_name (attr, "Firmware Supported");
+	fwupd_hsi_attr_set_summary (attr, "There is firmware less than 12 months old");
+	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_UPDATES);
+	g_ptr_array_add (attrs, attr);
+
+	/* do we have attestation checksums */
+	if (fwupd_release_get_checksums(rel_newest)->len > 0) {
+		attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.Attestation");
+		fwupd_hsi_attr_set_name (attr, "Firmware Attestation");
+		fwupd_hsi_attr_set_summary (attr, "Firmware has attestation checksums");
+		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_ATTESTATION);
+		g_ptr_array_add (attrs, attr);
+	}
+}
+
+GPtrArray *
+fu_engine_get_host_security_attrs (FuEngine *self, GError **error)
+{
+	GPtrArray *plugins = fu_plugin_list_get_all (self->plugin_list);
+	g_autoptr(GPtrArray) hsi_attrs = NULL;
+
+	/* built in */
+	hsi_attrs = g_ptr_array_new_with_free_func ((GDestroyNotify) g_object_unref);
+	fu_engine_add_hsi_attrs_tainted (self, hsi_attrs);
+	fu_engine_add_hsi_attrs_supported (self, hsi_attrs);
+
+	/* call into plugins */
+	for (guint j = 0; j < plugins->len; j++) {
+		FuPlugin *plugin_tmp = g_ptr_array_index (plugins, j);
+		g_autoptr(GError) error_local = NULL;
+		if (!fu_plugin_runner_add_hsi_attrs (plugin_tmp,
+						     hsi_attrs,
+						     &error_local)) {
+			g_warning ("failed to add HSI attrs for %s: %s",
+				   fu_plugin_get_name (plugin_tmp),
+				   error_local->message);
+			continue;
+		}
+	}
+
+	/* sanity check */
+	if (hsi_attrs->len == 0) {
+		g_set_error_literal (error,
+				     FWUPD_ERROR,
+				     FWUPD_ERROR_INTERNAL,
+				     "no host security attributes");
+		return NULL;
+	}
+	return g_steal_pointer (&hsi_attrs);
+}
+
+static gchar *
+fu_engine_hsi_attrs_to_string (GPtrArray *hsi_attrs)
+{
+	guint hsi_number = 0;
+	FwupdHsiAttrFlags flags = FWUPD_HSI_ATTR_FLAG_NONE;
+	GString *str = g_string_new ("HSI:");
+
+	/* find the highest HSI number where there are no failures and at least
+	 * one success */
+	for (guint j = 1; j < 9; j++) {
+		gboolean success_cnt = 0;
+		gboolean failure_cnt = 0;
+		for (guint i = 0; i < hsi_attrs->len; i++) {
+			FwupdHsiAttr *attr = g_ptr_array_index (hsi_attrs, i);
+			if (fwupd_hsi_attr_get_number (attr) != j)
+				continue;
+			if (fwupd_hsi_attr_has_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS))
+				success_cnt++;
+			else
+				failure_cnt++;
+		}
+
+		/* abort */
+		if (failure_cnt > 0) {
+			hsi_number = j - 1;
+			break;
+		}
+
+		/* we matched at least one thing on this level */
+		if (success_cnt > 0)
+			hsi_number = j;
+	}
+
+	/* get a logical OR of all attribute flags */
+	for (guint i = 0; i < hsi_attrs->len; i++) {
+		FwupdHsiAttr *attr = g_ptr_array_index (hsi_attrs, i);
+		flags |= fwupd_hsi_attr_get_flags (attr);
+	}
+
+	g_string_append_printf (str, "%u", hsi_number);
+	if (flags != FWUPD_HSI_ATTR_FLAG_NONE) {
+		g_string_append (str, "+");
+		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_UPDATES)
+			g_string_append (str, "U");
+		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_ATTESTATION)
+			g_string_append (str, "A");
+		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_ISSUE)
+			g_string_append (str, "X");
+		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_UNTRUSTED)
+			g_string_append (str, "?");
+	}
+	return g_string_free (str, FALSE);
+}
+
+const gchar *
+fu_engine_get_host_security_id (FuEngine *self)
+{
+	g_return_val_if_fail (FU_IS_ENGINE (self), NULL);
+
+	/* rebuild */
+	if (!self->host_security_id_valid) {
+		g_autoptr(GPtrArray) hsi_attrs = fu_engine_get_host_security_attrs (self, NULL);
+		g_free (self->host_security_id);
+		self->host_security_id = fu_engine_hsi_attrs_to_string (hsi_attrs);
+		self->host_security_id_valid = TRUE;
+	}
+
+	return self->host_security_id;
+}
+
 gboolean
 fu_engine_load_plugins (FuEngine *self, GError **error)
 {
@@ -5736,6 +5921,7 @@ fu_engine_finalize (GObject *obj)
 		g_source_remove (self->coldplug_id);
 
 	g_free (self->host_machine_id);
+	g_free (self->host_security_id);
 	g_object_unref (self->idle);
 	g_object_unref (self->config);
 	g_object_unref (self->remote_list);

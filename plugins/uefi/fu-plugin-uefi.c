@@ -91,6 +91,22 @@ fu_plugin_get_results (FuPlugin *plugin, FuDevice *device, GError **error)
 	return TRUE;
 }
 
+gboolean
+fu_plugin_add_hsi_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
+{
+	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("com.uefi.SecureBoot");
+	fwupd_hsi_attr_set_number (attr, 1);
+	fwupd_hsi_attr_set_name (attr, "UEFI Secure Boot");
+	if (fu_efivar_secure_boot_enabled ()) {
+		fwupd_hsi_attr_set_summary (attr, "Enabled");
+		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+	} else {
+		fwupd_hsi_attr_set_summary (attr, "Disabled");
+	}
+	g_ptr_array_add (attrs, attr);
+	return TRUE;
+}
+
 static GBytes *
 fu_plugin_uefi_get_splash_data (guint width, guint height, GError **error)
 {
