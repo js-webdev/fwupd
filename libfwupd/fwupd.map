@@ -457,8 +457,8 @@ LIBFWUPD_1.4.2 {
     fwupd_hsi_attr_from_variant;
     fwupd_hsi_attr_get_appstream_id;
     fwupd_hsi_attr_get_flags;
-    fwupd_hsi_attr_get_number;
     fwupd_hsi_attr_get_name;
+    fwupd_hsi_attr_get_number;
     fwupd_hsi_attr_get_obsoletes;
     fwupd_hsi_attr_get_summary;
     fwupd_hsi_attr_get_type;
@@ -468,8 +468,8 @@ LIBFWUPD_1.4.2 {
     fwupd_hsi_attr_new;
     fwupd_hsi_attr_set_appstream_id;
     fwupd_hsi_attr_set_flags;
-    fwupd_hsi_attr_set_number;
     fwupd_hsi_attr_set_name;
+    fwupd_hsi_attr_set_number;
     fwupd_hsi_attr_set_summary;
     fwupd_hsi_attr_set_uri;
     fwupd_hsi_attr_to_json;
