@@ -5176,9 +5176,11 @@ fu_engine_calculate_hsi (GPtrArray *attrs)
 			hsi_number = j;
 	}
 
-	/* get a logical OR of all attribute flags */
+	/* get a logical OR of all failed attribute flags */
 	for (guint i = 0; i < attrs->len; i++) {
 		FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
+		if (fwupd_hsi_attr_has_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS))
+			continue;
 		flags |= fwupd_hsi_attr_get_flags (attr);
 	}
 

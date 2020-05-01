@@ -91,8 +91,74 @@ fu_plugin_get_results (FuPlugin *plugin, FuDevice *device, GError **error)
 	return TRUE;
 }
 
-gboolean
-fu_plugin_add_hsi_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
+static void
+fu_plugin_usi_add_hsi_tainted (FuPlugin *plugin, GPtrArray *attrs)
+{
+	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("com.linux.Kernel.CheckTainted");
+	fwupd_hsi_attr_set_name (attr, "Linux Kernel Tainted");
+	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_UNTRUSTED);
+	if (fu_uefi_read_file_as_uint64 ("/proc/sys/kernel", "tainted") == 0)
+		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+	g_ptr_array_add (attrs, attr);
+}
+
+static void
+fu_plugin_usi_add_hsi_lockdown (FuPlugin *plugin, GPtrArray *attrs)
+{
+	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("com.linux.Kernel.CheckLockdown");
+	gsize bufsz = 0;
+	g_autofree gchar *buf = NULL;
+	fwupd_hsi_attr_set_name (attr, "Linux Kernel Lockdown");
+	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_UNTRUSTED);
+	if (g_file_get_contents ("/sys/kernel/security/lockdown", &buf, &bufsz, NULL)) {
+		if (g_strstr_len (buf, bufsz, "[integrity]") != NULL ||
+		    g_strstr_len (buf, bufsz, "[confidentiality]") != NULL) {
+			fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+		} else {
+			fwupd_hsi_attr_set_summary (attr, "Not integrity or confidentiality");
+		}
+	}
+	g_ptr_array_add (attrs, attr);
+}
+
+static void
+fu_plugin_usi_add_hsi_s3sleep (FuPlugin *plugin, GPtrArray *attrs)
+{
+	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("com.linux.Kernel.CheckS3Sleep");
+	gsize bufsz = 0;
+	g_autofree gchar *buf = NULL;
+	fwupd_hsi_attr_set_number (attr, 3);
+	fwupd_hsi_attr_set_name (attr, "Linux Kernel S3 Sleep");
+	if (g_file_get_contents ("/sys/power/mem_sleep", &buf, &bufsz, NULL)) {
+		if (g_strstr_len (buf, bufsz, "deep") == NULL) {
+			fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+		} else {
+			fwupd_hsi_attr_set_summary (attr, "Deep sleep available");
+		}
+	}
+	g_ptr_array_add (attrs, attr);
+}
+
+static void
+fu_plugin_usi_add_hsi_swap (FuPlugin *plugin, GPtrArray *attrs)
+{
+	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("com.linux.UnencryptedSwap");
+	gsize bufsz = 0;
+	g_autofree gchar *buf = NULL;
+	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_UNTRUSTED);
+	fwupd_hsi_attr_set_name (attr, "Unencrypted swap");
+	if (g_file_get_contents ("/etc/crypttab", &buf, &bufsz, NULL)) {
+		if (g_strstr_len (buf, bufsz, "swap") != NULL) {
+			fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+		} else {
+			fwupd_hsi_attr_set_summary (attr, "Swap is not encrypted");
+		}
+	}
+	g_ptr_array_add (attrs, attr);
+}
+
+static void
+fu_plugin_usi_add_hsi_secureboot (FuPlugin *plugin, GPtrArray *attrs)
 {
 	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("com.uefi.SecureBoot");
 	fwupd_hsi_attr_set_number (attr, 1);
@@ -104,6 +170,16 @@ fu_plugin_add_hsi_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
 		fwupd_hsi_attr_set_summary (attr, "Disabled");
 	}
 	g_ptr_array_add (attrs, attr);
+}
+
+gboolean
+fu_plugin_add_hsi_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
+{
+	fu_plugin_usi_add_hsi_secureboot (plugin, attrs);
+	fu_plugin_usi_add_hsi_tainted (plugin, attrs);
+	fu_plugin_usi_add_hsi_lockdown (plugin, attrs);
+	fu_plugin_usi_add_hsi_s3sleep (plugin, attrs);
+	fu_plugin_usi_add_hsi_swap (plugin, attrs);
 	return TRUE;
 }
 

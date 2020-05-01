@@ -67,9 +67,6 @@ void		 fwupd_hsi_attr_set_name		(FwupdHsiAttr	*self,
 const gchar	*fwupd_hsi_attr_get_summary		(FwupdHsiAttr	*self);
 void		 fwupd_hsi_attr_set_summary		(FwupdHsiAttr	*self,
 							 const gchar	*summary);
-const gchar	*fwupd_hsi_attr_get_uri			(FwupdHsiAttr	*self);
-void		 fwupd_hsi_attr_set_uri			(FwupdHsiAttr	*self,
-							 const gchar	*uri);
 GPtrArray	*fwupd_hsi_attr_get_obsoletes		(FwupdHsiAttr	*self);
 void		 fwupd_hsi_attr_add_obsolete		(FwupdHsiAttr	*self,
 							 const gchar	*appstream_id);

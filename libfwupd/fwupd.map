@@ -462,7 +462,6 @@ LIBFWUPD_1.4.2 {
     fwupd_hsi_attr_get_obsoletes;
     fwupd_hsi_attr_get_summary;
     fwupd_hsi_attr_get_type;
-    fwupd_hsi_attr_get_uri;
     fwupd_hsi_attr_has_flag;
     fwupd_hsi_attr_has_obsolete;
     fwupd_hsi_attr_new;
@@ -471,7 +470,6 @@ LIBFWUPD_1.4.2 {
     fwupd_hsi_attr_set_name;
     fwupd_hsi_attr_set_number;
     fwupd_hsi_attr_set_summary;
-    fwupd_hsi_attr_set_uri;
     fwupd_hsi_attr_to_json;
     fwupd_hsi_attr_to_string;
     fwupd_hsi_attr_to_variant;

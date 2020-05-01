@@ -25,7 +25,6 @@ typedef struct {
 	GPtrArray			*obsoletes;
 	gchar				*name;
 	gchar				*summary;
-	gchar				*uri;
 	guint32				 number;
 	FwupdHsiAttrFlags		 flags;
 } FwupdHsiAttrPrivate;
@@ -55,7 +54,8 @@ fwupd_hsi_attr_flag_to_string (FwupdHsiAttrFlags flag)
  * fwupd_hsi_attr_get_obsoletes:
  * @self: A #FwupdHsiAttr
  *
- * Gets the self obsoletes.
+ * Gets the list of attribute obsoletes. The obsoleted attributes will not
+ * contribute to the calculated HSI value or be visible in command line tools.
  *
  * Returns: (element-type utf8) (transfer none): the obsoletes, which may be empty
  *
@@ -72,9 +72,10 @@ fwupd_hsi_attr_get_obsoletes (FwupdHsiAttr *self)
 /**
  * fwupd_hsi_attr_add_obsolete:
  * @self: A #FwupdHsiAttr
- * @appstream_id: the attribute appstream_id
+ * @appstream_id: the appstream_id
  *
- * Sets the attribute appstream_id.
+ * Adds an attribute appstream_id to obsolete. The obsoleted attribute will not
+ * contribute to the calculated HSI value or be visible in command line tools.
  *
  * Since: 1.4.2
  **/
@@ -84,11 +85,8 @@ fwupd_hsi_attr_add_obsolete (FwupdHsiAttr *self, const gchar *appstream_id)
 	FwupdHsiAttrPrivate *priv = GET_PRIVATE (self);
 	g_return_if_fail (FWUPD_IS_HSI_ATTR (self));
 	g_return_if_fail (appstream_id != NULL);
-	for (guint i = 0; i < priv->obsoletes->len; i++) {
-		const gchar *obsolete_tmp = g_ptr_array_index (priv->obsoletes, i);
-		if (g_strcmp0 (obsolete_tmp, appstream_id) == 0)
-			return;
-	}
+	if (fwupd_hsi_attr_has_obsolete (self, appstream_id))
+		return;
 	g_ptr_array_add (priv->obsoletes, g_strdup (appstream_id));
 }
 
@@ -97,7 +95,7 @@ fwupd_hsi_attr_add_obsolete (FwupdHsiAttr *self, const gchar *appstream_id)
  * @self: A #FwupdHsiAttr
  * @appstream_id: the attribute appstream_id
  *
- * Finds out if the self has the attribute appstream_id.
+ * Finds out if the attribute obsoletes a specific appstream_id.
  *
  * Returns: %TRUE if the self matches
  *
@@ -115,42 +113,6 @@ fwupd_hsi_attr_has_obsolete (FwupdHsiAttr *self, const gchar *appstream_id)
 			return TRUE;
 	}
 	return FALSE;
-}
-
-/**
- * fwupd_hsi_attr_get_uri:
- * @self: A #FwupdHsiAttr
- *
- * Gets the attribute uri.
- *
- * Returns: the attribute uri, or %NULL if unset
- *
- * Since: 1.4.2
- **/
-const gchar *
-fwupd_hsi_attr_get_uri (FwupdHsiAttr *self)
-{
-	FwupdHsiAttrPrivate *priv = GET_PRIVATE (self);
-	g_return_val_if_fail (FWUPD_IS_HSI_ATTR (self), NULL);
-	return priv->uri;
-}
-
-/**
- * fwupd_hsi_attr_set_uri:
- * @self: A #FwupdHsiAttr
- * @uri: the attribute URI
- *
- * Sets the attribute uri, i.e. where you can download the firmware from.
- *
- * Since: 1.4.2
- **/
-void
-fwupd_hsi_attr_set_uri (FwupdHsiAttr *self, const gchar *uri)
-{
-	FwupdHsiAttrPrivate *priv = GET_PRIVATE (self);
-	g_return_if_fail (FWUPD_IS_HSI_ATTR (self));
-	g_free (priv->uri);
-	priv->uri = g_strdup (uri);
 }
 
 /**
@@ -336,9 +298,9 @@ fwupd_hsi_attr_has_flag (FwupdHsiAttr *self, FwupdHsiAttrFlags flag)
  * fwupd_hsi_attr_get_number:
  * @self: A #FwupdHsiAttr
  *
- * Gets the time estimate for firmware installation (in seconds)
+ * Gets the HSI number.
  *
- * Returns: the estimated time to flash this self (or 0 if unset)
+ * Returns: the number ,or 0 if unset
  *
  * Since: 1.4.2
  **/
@@ -353,9 +315,9 @@ fwupd_hsi_attr_get_number (FwupdHsiAttr *self)
 /**
  * fwupd_hsi_attr_set_number:
  * @self: A #FwupdHsiAttr
- * @number: The amount of time
+ * @number: HSI number
  *
- * Sets the time estimate for firmware installation (in seconds)
+ * Sets the HSI number.
  *
  * Since: 1.4.2
  **/
@@ -401,11 +363,6 @@ fwupd_hsi_attr_to_variant (FwupdHsiAttr *self)
 				       FWUPD_RESULT_KEY_SUMMARY,
 				       g_variant_new_string (priv->summary));
 	}
-	if (priv->uri != NULL) {
-		g_variant_builder_add (&builder, "{sv}",
-				       FWUPD_RESULT_KEY_URI,
-				       g_variant_new_string (priv->uri));
-	}
 	if (priv->obsoletes->len > 0) {
 		g_autofree const gchar **strv = g_new0 (const gchar *, priv->obsoletes->len + 1);
 		for (guint i = 0; i < priv->obsoletes->len; i++)
@@ -446,10 +403,6 @@ fwupd_hsi_attr_from_key_value (FwupdHsiAttr *self, const gchar *key, GVariant *v
 		g_autofree const gchar **strv = g_variant_get_strv (value, NULL);
 		for (guint i = 0; strv[i] != NULL; i++)
 			fwupd_hsi_attr_add_obsolete (self, strv[i]);
-		return;
-	}
-	if (g_strcmp0 (key, FWUPD_RESULT_KEY_URI) == 0) {
-		fwupd_hsi_attr_set_uri (self, g_variant_get_string (value, NULL));
 		return;
 	}
 	if (g_strcmp0 (key, FWUPD_RESULT_KEY_TRUST_FLAGS) == 0) {
@@ -553,7 +506,6 @@ fwupd_hsi_attr_to_json (FwupdHsiAttr *self, JsonBuilder *builder)
 		}
 		json_builder_end_array (builder);
 	}
-	fwupd_hsi_attr_json_add_string (builder, FWUPD_RESULT_KEY_URI, priv->uri);
 	if (priv->flags != FWUPD_HSI_ATTR_FLAG_NONE) {
 		json_builder_set_member_name (builder, FWUPD_RESULT_KEY_FLAGS);
 		json_builder_begin_array (builder);
@@ -625,7 +577,6 @@ fwupd_hsi_attr_finalize (GObject *object)
 	g_free (priv->appstream_id);
 	g_free (priv->name);
 	g_free (priv->summary);
-	g_free (priv->uri);
 	g_ptr_array_unref (priv->obsoletes);
 
 	G_OBJECT_CLASS (fwupd_hsi_attr_parent_class)->finalize (object);
