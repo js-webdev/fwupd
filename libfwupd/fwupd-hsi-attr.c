@@ -6,13 +6,10 @@
 
 #include "config.h"
 
-//#include <glib-object.h>
 #include <gio/gio.h>
-//#include <string.h>
 
 #include "fwupd-common-private.h"
 #include "fwupd-enums-private.h"
-//#include "fwupd-error.h"
 #include "fwupd-hsi-attr-private.h"
 
 /**
@@ -683,7 +680,7 @@ fwupd_hsi_attr_from_variant (GVariant *value)
  *
  * Creates an array of new hsi_attrs using packed data.
  *
- * Returns: (transfer container) (element-type FwupdHsiAttr): hsi_attrs, or %NULL if @value was invalid
+ * Returns: (transfer container) (element-type FwupdHsiAttr): attributes, or %NULL if @value was invalid
  *
  * Since: 1.4.2
  **/

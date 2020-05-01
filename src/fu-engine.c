@@ -5042,12 +5042,13 @@ fu_engine_add_hsi_attrs_supported (FuEngine *self, GPtrArray *attrs)
 {
 	FwupdHsiAttr *attr;
 	FwupdRelease *rel_newest = NULL;
+	FwupdRelease *rel_current = NULL;
 	guint64 now = (guint64) g_get_real_time () / G_USEC_PER_SEC;
 	g_autoptr(FuDevice) device = NULL;
 	g_autoptr(GPtrArray) releases = NULL;
 	g_autoptr(GError) error_local = NULL;
 
-	/* find out if there is firmware less than 6 months old */
+	/* find out if there is firmware less than 12 months old */
 	device = fu_device_list_get_by_guid (self->device_list,
 					     /* main-system-firmware */
 					     "230c8b18-8d9b-53ec-838b-6cfc0383493a",
@@ -5086,10 +5087,20 @@ fu_engine_add_hsi_attrs_supported (FuEngine *self, GPtrArray *attrs)
 	g_ptr_array_add (attrs, attr);
 
 	/* do we have attestation checksums */
-	if (fwupd_release_get_checksums(rel_newest)->len > 0) {
+	for (guint i = 0; i < releases->len; i++) {
+		FwupdRelease *rel_tmp = g_ptr_array_index (releases, i);
+		if (fu_common_vercmp_full (fu_device_get_version (device),
+					   fwupd_release_get_version (rel_tmp),
+					   fu_device_get_version_format (device)) == 0) {
+			rel_current = rel_tmp;
+			break;
+		}
+	}
+	if (rel_current != NULL &&
+	    fwupd_release_get_checksums(rel_current)->len > 0) {
 		attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.Attestation");
 		fwupd_hsi_attr_set_name (attr, "Firmware Attestation");
-		fwupd_hsi_attr_set_summary (attr, "Firmware has attestation checksums");
+		fwupd_hsi_attr_set_summary (attr, "Running firmware has attestation checksums");
 		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
 		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_ATTESTATION);
 		g_ptr_array_add (attrs, attr);
@@ -5100,19 +5111,19 @@ GPtrArray *
 fu_engine_get_host_security_attrs (FuEngine *self, GError **error)
 {
 	GPtrArray *plugins = fu_plugin_list_get_all (self->plugin_list);
-	g_autoptr(GPtrArray) hsi_attrs = NULL;
+	g_autoptr(GPtrArray) attrs = NULL;
 
 	/* built in */
-	hsi_attrs = g_ptr_array_new_with_free_func ((GDestroyNotify) g_object_unref);
-	fu_engine_add_hsi_attrs_tainted (self, hsi_attrs);
-	fu_engine_add_hsi_attrs_supported (self, hsi_attrs);
+	attrs = g_ptr_array_new_with_free_func ((GDestroyNotify) g_object_unref);
+	fu_engine_add_hsi_attrs_tainted (self, attrs);
+	fu_engine_add_hsi_attrs_supported (self, attrs);
 
 	/* call into plugins */
 	for (guint j = 0; j < plugins->len; j++) {
 		FuPlugin *plugin_tmp = g_ptr_array_index (plugins, j);
 		g_autoptr(GError) error_local = NULL;
 		if (!fu_plugin_runner_add_hsi_attrs (plugin_tmp,
-						     hsi_attrs,
+						     attrs,
 						     &error_local)) {
 			g_warning ("failed to add HSI attrs for %s: %s",
 				   fu_plugin_get_name (plugin_tmp),
@@ -5122,18 +5133,18 @@ fu_engine_get_host_security_attrs (FuEngine *self, GError **error)
 	}
 
 	/* sanity check */
-	if (hsi_attrs->len == 0) {
+	if (attrs->len == 0) {
 		g_set_error_literal (error,
 				     FWUPD_ERROR,
 				     FWUPD_ERROR_INTERNAL,
 				     "no host security attributes");
 		return NULL;
 	}
-	return g_steal_pointer (&hsi_attrs);
+	return g_steal_pointer (&attrs);
 }
 
 static gchar *
-fu_engine_hsi_attrs_to_string (GPtrArray *hsi_attrs)
+fu_engine_calculate_hsi (GPtrArray *attrs)
 {
 	guint hsi_number = 0;
 	FwupdHsiAttrFlags flags = FWUPD_HSI_ATTR_FLAG_NONE;
@@ -5141,11 +5152,11 @@ fu_engine_hsi_attrs_to_string (GPtrArray *hsi_attrs)
 
 	/* find the highest HSI number where there are no failures and at least
 	 * one success */
-	for (guint j = 1; j < 9; j++) {
+	for (guint j = 1; j <= FWUPD_HSI_ATTR_NUMBER_MAX; j++) {
 		gboolean success_cnt = 0;
 		gboolean failure_cnt = 0;
-		for (guint i = 0; i < hsi_attrs->len; i++) {
-			FwupdHsiAttr *attr = g_ptr_array_index (hsi_attrs, i);
+		for (guint i = 0; i < attrs->len; i++) {
+			FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
 			if (fwupd_hsi_attr_get_number (attr) != j)
 				continue;
 			if (fwupd_hsi_attr_has_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS))
@@ -5166,8 +5177,8 @@ fu_engine_hsi_attrs_to_string (GPtrArray *hsi_attrs)
 	}
 
 	/* get a logical OR of all attribute flags */
-	for (guint i = 0; i < hsi_attrs->len; i++) {
-		FwupdHsiAttr *attr = g_ptr_array_index (hsi_attrs, i);
+	for (guint i = 0; i < attrs->len; i++) {
+		FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
 		flags |= fwupd_hsi_attr_get_flags (attr);
 	}
 
@@ -5193,9 +5204,9 @@ fu_engine_get_host_security_id (FuEngine *self)
 
 	/* rebuild */
 	if (!self->host_security_id_valid) {
-		g_autoptr(GPtrArray) hsi_attrs = fu_engine_get_host_security_attrs (self, NULL);
+		g_autoptr(GPtrArray) attrs = fu_engine_get_host_security_attrs (self, NULL);
 		g_free (self->host_security_id);
-		self->host_security_id = fu_engine_hsi_attrs_to_string (hsi_attrs);
+		self->host_security_id = fu_engine_calculate_hsi (attrs);
 		self->host_security_id_valid = TRUE;
 	}
 

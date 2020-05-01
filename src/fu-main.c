@@ -256,15 +256,15 @@ fu_main_device_array_to_variant (FuMainPrivate *priv, const gchar *sender,
 }
 
 static GVariant *
-fu_main_hsi_attr_array_to_variant (FuMainPrivate *priv, GPtrArray *hsi_attrs)
+fu_main_hsi_attr_array_to_variant (FuMainPrivate *priv, GPtrArray *attrs)
 {
 	GVariantBuilder builder;
 
-	g_return_val_if_fail (hsi_attrs->len > 0, NULL);
+	g_return_val_if_fail (attrs->len > 0, NULL);
 	g_variant_builder_init (&builder, G_VARIANT_TYPE_ARRAY);
 
-	for (guint i = 0; i < hsi_attrs->len; i++) {
-		FwupdHsiAttr *hsi_attr = g_ptr_array_index (hsi_attrs, i);
+	for (guint i = 0; i < attrs->len; i++) {
+		FwupdHsiAttr *hsi_attr = g_ptr_array_index (attrs, i);
 		GVariant *tmp = fwupd_hsi_attr_to_variant (hsi_attr);
 		g_variant_builder_add_value (&builder, tmp);
 	}

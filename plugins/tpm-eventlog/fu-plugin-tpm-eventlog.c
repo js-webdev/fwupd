@@ -114,7 +114,6 @@ fu_plugin_device_registered (FuPlugin *plugin, FuDevice *device)
 			const gchar *checksum_tmp = g_ptr_array_index (data->pcr0s, j);
 			if (g_strcmp0 (checksum, checksum_tmp) == 0) {
 				data->reconstructed = TRUE;
-				g_debug ("TPM reconstructed event log matched PCR0 reading");
 				return;
 			}
 		}

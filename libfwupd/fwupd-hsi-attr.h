@@ -49,6 +49,9 @@ typedef enum {
 	FWUPD_HSI_ATTR_FLAG_RUNTIME_UNTRUSTED	= 1 << 11,
 } FwupdHsiAttrFlags;
 
+/* the maximum value defined, although this might be increased in the future */
+#define FWUPD_HSI_ATTR_NUMBER_MAX		5
+
 FwupdHsiAttr	*fwupd_hsi_attr_new			(const gchar	*appstream_id);
 gchar		*fwupd_hsi_attr_to_string		(FwupdHsiAttr	*self);
 
