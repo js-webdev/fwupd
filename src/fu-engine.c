@@ -5021,26 +5021,26 @@ fu_engine_get_host_machine_id (FuEngine *self)
 }
 
 static void
-fu_engine_add_hsi_attrs_tainted (FuEngine *self, GPtrArray *attrs)
+fu_engine_add_security_attrs_tainted (FuEngine *self, GPtrArray *attrs)
 {
-	FwupdHsiAttr *attr;
+	FwupdSecurityAttr *attr;
 
 	/* everything is fine */
 	if (!self->tainted)
 		return;
 
 	/* add runtime attribute */
-	attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.PluginsTainted");
-	fwupd_hsi_attr_set_name (attr, "fwupd daemon");
-	fwupd_hsi_attr_set_summary (attr, "The daemon has been tainted by a non-upstream plugin");
-	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_ISSUE);
+	attr = fwupd_security_attr_new ("org.fwupd.Hsi.PluginsTainted");
+	fwupd_security_attr_set_name (attr, "fwupd daemon");
+	fwupd_security_attr_set_summary (attr, "The daemon has been tainted by a non-upstream plugin");
+	fwupd_security_attr_add_flag (attr, FWUPD_SECURITY_ATTR_FLAG_RUNTIME_ISSUE);
 	g_ptr_array_add (attrs, attr);
 }
 
 static void
-fu_engine_add_hsi_attrs_supported (FuEngine *self, GPtrArray *attrs)
+fu_engine_add_security_attrs_supported (FuEngine *self, GPtrArray *attrs)
 {
-	FwupdHsiAttr *attr;
+	FwupdSecurityAttr *attr;
 	FwupdRelease *rel_newest = NULL;
 	FwupdRelease *rel_current = NULL;
 	guint64 now = (guint64) g_get_real_time () / G_USEC_PER_SEC;
@@ -5079,11 +5079,11 @@ fu_engine_add_hsi_attrs_supported (FuEngine *self, GPtrArray *attrs)
 	}
 
 	/* add runtime attribute */
-	attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.Updates");
-	fwupd_hsi_attr_set_name (attr, "Firmware Supported");
-	fwupd_hsi_attr_set_summary (attr, "There is firmware less than 12 months old");
-	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
-	fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_UPDATES);
+	attr = fwupd_security_attr_new ("org.fwupd.Hsi.Updates");
+	fwupd_security_attr_set_name (attr, "Firmware Supported");
+	fwupd_security_attr_set_summary (attr, "There is firmware less than 12 months old");
+	fwupd_security_attr_add_flag (attr, FWUPD_SECURITY_ATTR_FLAG_SUCCESS);
+	fwupd_security_attr_add_flag (attr, FWUPD_SECURITY_ATTR_FLAG_RUNTIME_UPDATES);
 	g_ptr_array_add (attrs, attr);
 
 	/* do we have attestation checksums */
@@ -5098,11 +5098,11 @@ fu_engine_add_hsi_attrs_supported (FuEngine *self, GPtrArray *attrs)
 	}
 	if (rel_current != NULL &&
 	    fwupd_release_get_checksums(rel_current)->len > 0) {
-		attr = fwupd_hsi_attr_new ("org.fwupd.Hsi.Attestation");
-		fwupd_hsi_attr_set_name (attr, "Firmware Attestation");
-		fwupd_hsi_attr_set_summary (attr, "Running firmware has attestation checksums");
-		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
-		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_RUNTIME_ATTESTATION);
+		attr = fwupd_security_attr_new ("org.fwupd.Hsi.Attestation");
+		fwupd_security_attr_set_name (attr, "Firmware Attestation");
+		fwupd_security_attr_set_summary (attr, "Running firmware has attestation checksums");
+		fwupd_security_attr_add_flag (attr, FWUPD_SECURITY_ATTR_FLAG_SUCCESS);
+		fwupd_security_attr_add_flag (attr, FWUPD_SECURITY_ATTR_FLAG_RUNTIME_ATTESTATION);
 		g_ptr_array_add (attrs, attr);
 	}
 }
@@ -5115,14 +5115,14 @@ fu_engine_get_host_security_attrs (FuEngine *self, GError **error)
 
 	/* built in */
 	attrs = g_ptr_array_new_with_free_func ((GDestroyNotify) g_object_unref);
-	fu_engine_add_hsi_attrs_tainted (self, attrs);
-	fu_engine_add_hsi_attrs_supported (self, attrs);
+	fu_engine_add_security_attrs_tainted (self, attrs);
+	fu_engine_add_security_attrs_supported (self, attrs);
 
 	/* call into plugins */
 	for (guint j = 0; j < plugins->len; j++) {
 		FuPlugin *plugin_tmp = g_ptr_array_index (plugins, j);
 		g_autoptr(GError) error_local = NULL;
-		if (!fu_plugin_runner_add_hsi_attrs (plugin_tmp,
+		if (!fu_plugin_runner_add_security_attrs (plugin_tmp,
 						     attrs,
 						     &error_local)) {
 			g_warning ("failed to add HSI attrs for %s: %s",
@@ -5147,19 +5147,19 @@ static gchar *
 fu_engine_calculate_hsi (GPtrArray *attrs)
 {
 	guint hsi_number = 0;
-	FwupdHsiAttrFlags flags = FWUPD_HSI_ATTR_FLAG_NONE;
+	FwupdSecurityAttrFlags flags = FWUPD_SECURITY_ATTR_FLAG_NONE;
 	GString *str = g_string_new ("HSI:");
 
 	/* find the highest HSI number where there are no failures and at least
 	 * one success */
-	for (guint j = 1; j <= FWUPD_HSI_ATTR_NUMBER_MAX; j++) {
+	for (guint j = 1; j <= FWUPD_SECURITY_ATTR_NUMBER_MAX; j++) {
 		gboolean success_cnt = 0;
 		gboolean failure_cnt = 0;
 		for (guint i = 0; i < attrs->len; i++) {
-			FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
-			if (fwupd_hsi_attr_get_number (attr) != j)
+			FwupdSecurityAttr *attr = g_ptr_array_index (attrs, i);
+			if (fwupd_security_attr_get_number (attr) != j)
 				continue;
-			if (fwupd_hsi_attr_has_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS))
+			if (fwupd_security_attr_has_flag (attr, FWUPD_SECURITY_ATTR_FLAG_SUCCESS))
 				success_cnt++;
 			else
 				failure_cnt++;
@@ -5178,22 +5178,22 @@ fu_engine_calculate_hsi (GPtrArray *attrs)
 
 	/* get a logical OR of all failed attribute flags */
 	for (guint i = 0; i < attrs->len; i++) {
-		FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
-		if (fwupd_hsi_attr_has_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS))
+		FwupdSecurityAttr *attr = g_ptr_array_index (attrs, i);
+		if (fwupd_security_attr_has_flag (attr, FWUPD_SECURITY_ATTR_FLAG_SUCCESS))
 			continue;
-		flags |= fwupd_hsi_attr_get_flags (attr);
+		flags |= fwupd_security_attr_get_flags (attr);
 	}
 
 	g_string_append_printf (str, "%u", hsi_number);
-	if (flags != FWUPD_HSI_ATTR_FLAG_NONE) {
+	if (flags != FWUPD_SECURITY_ATTR_FLAG_NONE) {
 		g_string_append (str, "+");
-		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_UPDATES)
+		if (flags & FWUPD_SECURITY_ATTR_FLAG_RUNTIME_UPDATES)
 			g_string_append (str, "U");
-		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_ATTESTATION)
+		if (flags & FWUPD_SECURITY_ATTR_FLAG_RUNTIME_ATTESTATION)
 			g_string_append (str, "A");
-		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_ISSUE)
+		if (flags & FWUPD_SECURITY_ATTR_FLAG_RUNTIME_ISSUE)
 			g_string_append (str, "X");
-		if (flags & FWUPD_HSI_ATTR_FLAG_RUNTIME_UNTRUSTED)
+		if (flags & FWUPD_SECURITY_ATTR_FLAG_RUNTIME_UNTRUSTED)
 			g_string_append (str, "?");
 	}
 	return g_string_free (str, FALSE);

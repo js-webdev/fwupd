@@ -23,7 +23,7 @@
 #include "fwupd-enums.h"
 #include "fwupd-error.h"
 #include "fwupd-device-private.h"
-#include "fwupd-hsi-attr-private.h"
+#include "fwupd-security-attr-private.h"
 #include "fwupd-release-private.h"
 #include "fwupd-remote-private.h"
 
@@ -370,7 +370,7 @@ fwupd_client_fixup_dbus_error (GError *error)
  *
  * Gets all the host security attributes from the daemon.
  *
- * Returns: (element-type FwupdHsiAttr) (transfer container): attributes
+ * Returns: (element-type FwupdSecurityAttr) (transfer container): attributes
  *
  * Since: 1.4.2
  **/
@@ -401,7 +401,7 @@ fwupd_client_get_host_security_attrs (FwupdClient *client, GCancellable *cancell
 			fwupd_client_fixup_dbus_error (*error);
 		return NULL;
 	}
-	return fwupd_hsi_attr_array_from_variant (val);
+	return fwupd_security_attr_array_from_variant (val);
 }
 
 /**

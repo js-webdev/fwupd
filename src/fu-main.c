@@ -20,7 +20,7 @@
 #include <jcat.h>
 
 #include "fwupd-device-private.h"
-#include "fwupd-hsi-attr-private.h"
+#include "fwupd-security-attr-private.h"
 #include "fwupd-release-private.h"
 #include "fwupd-remote-private.h"
 #include "fwupd-resources.h"
@@ -256,7 +256,7 @@ fu_main_device_array_to_variant (FuMainPrivate *priv, const gchar *sender,
 }
 
 static GVariant *
-fu_main_hsi_attr_array_to_variant (FuMainPrivate *priv, GPtrArray *attrs)
+fu_main_security_attr_array_to_variant (FuMainPrivate *priv, GPtrArray *attrs)
 {
 	GVariantBuilder builder;
 
@@ -264,8 +264,8 @@ fu_main_hsi_attr_array_to_variant (FuMainPrivate *priv, GPtrArray *attrs)
 	g_variant_builder_init (&builder, G_VARIANT_TYPE_ARRAY);
 
 	for (guint i = 0; i < attrs->len; i++) {
-		FwupdHsiAttr *hsi_attr = g_ptr_array_index (attrs, i);
-		GVariant *tmp = fwupd_hsi_attr_to_variant (hsi_attr);
+		FwupdSecurityAttr *security_attr = g_ptr_array_index (attrs, i);
+		GVariant *tmp = fwupd_security_attr_to_variant (security_attr);
 		g_variant_builder_add_value (&builder, tmp);
 	}
 	return g_variant_new ("(aa{sv})", &builder);
@@ -1012,7 +1012,7 @@ fu_main_daemon_method_call (GDBusConnection *connection, const gchar *sender,
 			g_dbus_method_invocation_return_gerror (invocation, error);
 			return;
 		}
-		val = fu_main_hsi_attr_array_to_variant (priv, attrs);
+		val = fu_main_security_attr_array_to_variant (priv, attrs);
 		g_dbus_method_invocation_return_value (invocation, val);
 		return;
 	}

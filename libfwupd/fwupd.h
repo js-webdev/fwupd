@@ -18,7 +18,7 @@
 #include <libfwupd/fwupd-device.h>
 #include <libfwupd/fwupd-enums.h>
 #include <libfwupd/fwupd-error.h>
-#include <libfwupd/fwupd-hsi-attr.h>
+#include <libfwupd/fwupd-security-attr.h>
 #include <libfwupd/fwupd-release.h>
 #include <libfwupd/fwupd-remote.h>
 #include <libfwupd/fwupd-version.h>

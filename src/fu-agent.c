@@ -21,7 +21,7 @@
 #include "fu-util-common.h"
 #include "fwupd-device-private.h"
 #include "fwupd-enums-private.h"
-#include "fwupd-hsi-attr-private.h"
+#include "fwupd-security-attr-private.h"
 
 struct FuUtilPrivate {
 	GCancellable		*cancellable;
@@ -114,7 +114,7 @@ fu_util_add_updates_json (FuUtilPrivate *priv, JsonBuilder *builder, GError **er
 }
 
 static gboolean
-fu_util_add_hsi_attributes_json (FuUtilPrivate *priv, JsonBuilder *builder, GError **error)
+fu_util_add_security_attributes_json (FuUtilPrivate *priv, JsonBuilder *builder, GError **error)
 {
 	g_autoptr(GPtrArray) attrs = NULL;
 
@@ -125,9 +125,9 @@ fu_util_add_hsi_attributes_json (FuUtilPrivate *priv, JsonBuilder *builder, GErr
 	json_builder_set_member_name (builder, "HostSecurityAttributes");
 	json_builder_begin_array (builder);
 	for (guint i = 0; i < attrs->len; i++) {
-		FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
+		FwupdSecurityAttr *attr = g_ptr_array_index (attrs, i);
 		json_builder_begin_object (builder);
-		fwupd_hsi_attr_to_json (attr, builder);
+		fwupd_security_attr_to_json (attr, builder);
 		json_builder_end_object (builder);
 	}
 	json_builder_end_array (builder);
@@ -240,7 +240,7 @@ fu_util_get_hsi (FuUtilPrivate *priv, gchar **values, GError **error)
 	/* create header */
 	builder = json_builder_new ();
 	json_builder_begin_object (builder);
-	if (!fu_util_add_hsi_attributes_json (priv, builder, error))
+	if (!fu_util_add_security_attributes_json (priv, builder, error))
 		return FALSE;
 	json_builder_end_object (builder);
 

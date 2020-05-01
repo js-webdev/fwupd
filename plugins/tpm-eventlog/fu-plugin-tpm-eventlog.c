@@ -126,17 +126,17 @@ fu_plugin_device_registered (FuPlugin *plugin, FuDevice *device)
 }
 
 gboolean
-fu_plugin_add_hsi_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
+fu_plugin_add_security_attrs (FuPlugin *plugin, GPtrArray *attrs, GError **error)
 {
 	FuPluginData *data = fu_plugin_get_data (plugin);
-	FwupdHsiAttr *attr = fwupd_hsi_attr_new ("org.trustedcomputinggroup.TpmEventLog");
-	fwupd_hsi_attr_set_number (attr, 2);
-	fwupd_hsi_attr_set_name (attr, "TPM Reconstruction");
+	FwupdSecurityAttr *attr = fwupd_security_attr_new ("org.trustedcomputinggroup.TpmEventLog");
+	fwupd_security_attr_set_number (attr, 2);
+	fwupd_security_attr_set_name (attr, "TPM Reconstruction");
 	if (data->reconstructed) {
-		fwupd_hsi_attr_set_summary (attr, "TPM event log matched PCR0 reading");
-		fwupd_hsi_attr_add_flag (attr, FWUPD_HSI_ATTR_FLAG_SUCCESS);
+		fwupd_security_attr_set_summary (attr, "TPM event log matched PCR0 reading");
+		fwupd_security_attr_add_flag (attr, FWUPD_SECURITY_ATTR_FLAG_SUCCESS);
 	} else {
-		fwupd_hsi_attr_set_summary (attr, "TPM event log did not match PCR0 reading");
+		fwupd_security_attr_set_summary (attr, "TPM event log did not match PCR0 reading");
 	}
 	g_ptr_array_add (attrs, attr);
 	return TRUE;

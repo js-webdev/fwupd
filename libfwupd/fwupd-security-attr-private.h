@@ -9,13 +9,13 @@
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
-#include "fwupd-hsi-attr.h"
+#include "fwupd-security-attr.h"
 
 G_BEGIN_DECLS
 
-GVariant	*fwupd_hsi_attr_to_variant		(FwupdHsiAttr	*self);
-void		 fwupd_hsi_attr_to_json			(FwupdHsiAttr	*self,
-							 JsonBuilder	*builder);
+GVariant	*fwupd_security_attr_to_variant		(FwupdSecurityAttr	*self);
+void		 fwupd_security_attr_to_json		(FwupdSecurityAttr	*self,
+							 JsonBuilder		*builder);
 
 G_END_DECLS
 

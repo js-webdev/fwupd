@@ -1947,8 +1947,8 @@ fu_util_get_hsi (FuUtilPrivate *priv, gchar **values, GError **error)
 	if (attrs == NULL)
 		return FALSE;
 	for (guint i = 0; i < attrs->len; i++) {
-		FwupdHsiAttr *attr = g_ptr_array_index (attrs, i);
-		g_autofree gchar *str = fwupd_hsi_attr_to_string (attr);
+		FwupdSecurityAttr *attr = g_ptr_array_index (attrs, i);
+		g_autofree gchar *str = fwupd_security_attr_to_string (attr);
 		g_print ("%s\n", str);
 	}
 
